@@ -55,8 +55,8 @@ export const Visualizations: React.FC<VisualizationsProps> = ({
   const [customEndDate, setCustomEndDate] = useState<string>("");
   const [activeIndex, setActiveIndex] = useState<number>(0);
 
-  // Reference date (defaults to Aug 15, 2026 or today)
-  const refDate = useMemo(() => new Date("2026-08-15"), []);
+  // Reference date: always today
+  const refDate = useMemo(() => new Date(), []);
 
   // Compute active date interval based on timePeriod
   const { start, end, label } = useMemo(() => {
