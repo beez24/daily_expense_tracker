@@ -28,8 +28,6 @@ import {
   format,
   parseISO,
   isWithinInterval,
-  eachDayOfInterval,
-  isSameDay,
 } from "date-fns";
 
 export type TimePeriodOption =
@@ -160,60 +158,7 @@ export const Visualizations: React.FC<VisualizationsProps> = ({
     return filteredExpenses.reduce((sum, item) => sum + item.amount, 0);
   }, [filteredExpenses]);
 
-  // Bar Chart Data (daily points across selected interval)
-  const barChartData = useMemo(() => {
-    try {
-      const days = eachDayOfInterval({ start, end });
-      const today = new Date();
-
-      // If period is <= 31 days, show daily bars
-      if (days.length <= 31) {
-        return days.map((dayDate) => {
-          const dateStr = format(dayDate, "yyyy-MM-dd");
-          const dayName = format(dayDate, "EEE");
-          const fullDateLabel = format(dayDate, "MMM d, yyyy");
-
-          const amount = filteredExpenses
-            .filter((exp) => exp.date === dateStr)
-            .reduce((sum, item) => sum + item.amount, 0);
-
-          return {
-            day: days.length <= 7 ? dayName : format(dayDate, "d MMM"),
-            dateStr,
-            fullDateLabel,
-            amount,
-            isToday: isSameDay(dayDate, today),
-          };
-        });
-      }
-
-      // If period is > 31 days, aggregate by date
-      const dateMap: Record<string, { fullDateLabel: string; amount: number }> = {};
-      filteredExpenses.forEach((exp) => {
-        if (!dateMap[exp.date]) {
-          dateMap[exp.date] = {
-            fullDateLabel: format(parseISO(exp.date), "MMM d, yyyy"),
-            amount: 0,
-          };
-        }
-        dateMap[exp.date].amount += exp.amount;
-      });
-
-      return Object.entries(dateMap)
-        .map(([dateStr, val]) => ({
-          day: format(parseISO(dateStr), "MMM d"),
-          dateStr,
-          fullDateLabel: val.fullDateLabel,
-          amount: val.amount,
-          isToday: isSameDay(parseISO(dateStr), today),
-        }))
-        .sort((a, b) => a.dateStr.localeCompare(b.dateStr));
-    } catch (err) {
-      return [];
-    }
-  }, [start, end, filteredExpenses]);
-
-  // Category Spending Breakdown (Donut Chart) for selected time period
+  // Category Spending Breakdown ordered from highest spending to lowest
   const categoryChartData: CategorySpending[] = useMemo(() => {
     const categoryTotals: Record<string, { amount: number; count: number }> = {};
 
@@ -244,7 +189,7 @@ export const Visualizations: React.FC<VisualizationsProps> = ({
           count,
         };
       })
-      .sort((a, b) => b.amount - a.amount);
+      .sort((a, b) => b.amount - a.amount); // Ordered from highest spending to lowest!
   }, [filteredExpenses, categories, totalPeriodSpending]);
 
   // Active shape for Donut Chart hover
@@ -316,7 +261,7 @@ export const Visualizations: React.FC<VisualizationsProps> = ({
               }`}
             >
               <BarChartIcon className="h-3.5 w-3.5" />
-              <span>Trend Bar</span>
+              <span>Category Bar</span>
             </button>
             <button
               onClick={() => setActiveTab("donut")}
@@ -358,18 +303,19 @@ export const Visualizations: React.FC<VisualizationsProps> = ({
         </div>
       )}
 
-      {/* Tab 1: Bar Chart */}
+      {/* Tab 1: Category Bar Chart (Highest to Lowest) */}
       {activeTab === "bar" && (
         <div>
-          {barChartData.length > 0 ? (
+          {categoryChartData.length > 0 ? (
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={barChartData} margin={{ top: 15, right: 10, left: -20, bottom: 5 }}>
+                <BarChart data={categoryChartData} margin={{ top: 15, right: 10, left: -20, bottom: 25 }}>
                   <XAxis
-                    dataKey="day"
+                    dataKey="name"
                     axisLine={false}
                     tickLine={false}
                     tick={{ fill: "#94a3b8", fontSize: 11 }}
+                    interval={0}
                   />
                   <YAxis
                     axisLine={false}
@@ -381,18 +327,22 @@ export const Visualizations: React.FC<VisualizationsProps> = ({
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     content={({ active, payload }: any) => {
                       if (active && payload && payload.length) {
-                        const item = payload[0].payload;
+                        const item: CategorySpending = payload[0].payload;
                         return (
                           <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl text-xs border border-slate-700">
-                            <p className="font-semibold text-slate-300">{item.fullDateLabel}</p>
-                            <p className="text-lg font-bold text-indigo-400 mt-0.5">
-                              {formatCurrency(item.amount)}
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="h-2.5 w-2.5 rounded-full"
+                                style={{ backgroundColor: item.color }}
+                              />
+                              <p className="font-semibold text-slate-200">{item.name}</p>
+                            </div>
+                            <p className="text-base font-bold text-indigo-400 mt-1">
+                              {formatCurrency(item.amount)} ({item.percentage.toFixed(1)}%)
                             </p>
-                            {item.isToday && (
-                              <span className="mt-1 inline-block text-[10px] px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 rounded font-semibold">
-                                Today
-                              </span>
-                            )}
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              {item.count} transaction{item.count !== 1 ? "s" : ""}
+                            </p>
                           </div>
                         );
                       }
@@ -400,10 +350,10 @@ export const Visualizations: React.FC<VisualizationsProps> = ({
                     }}
                   />
                   <Bar dataKey="amount" radius={[8, 8, 0, 0]}>
-                    {barChartData.map((entry, index) => (
+                    {categoryChartData.map((entry, index) => (
                       <Cell
                         key={`cell-${index}`}
-                        fill={entry.isToday ? "#6366f1" : "#818cf8"}
+                        fill={entry.color}
                         className="hover:opacity-80 transition-opacity"
                       />
                     ))}
@@ -413,7 +363,7 @@ export const Visualizations: React.FC<VisualizationsProps> = ({
             </div>
           ) : (
             <div className="py-16 text-center text-slate-400 text-xs">
-              No transactions recorded during this time period.
+              No category spending recorded during this time period.
             </div>
           )}
         </div>
