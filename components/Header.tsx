@@ -1,19 +1,26 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Plus, SlidersHorizontal, Database, Sun, Moon, Wallet } from "lucide-react";
+import { User } from "@/types/auth";
+import { Plus, SlidersHorizontal, Database, Sun, Moon, Wallet, LogOut, User as UserIcon, LogIn } from "lucide-react";
 import { useTheme } from "next-themes";
 
 interface HeaderProps {
+  user: User | null;
   onOpenExpenseForm: () => void;
   onOpenCategoryManager: () => void;
   onOpenBackupModal: () => void;
+  onOpenAuthModal: () => void;
+  onLogout: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
+  user,
   onOpenExpenseForm,
   onOpenCategoryManager,
   onOpenBackupModal,
+  onOpenAuthModal,
+  onLogout,
 }) => {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -21,6 +28,15 @@ export const Header: React.FC<HeaderProps> = ({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const getInitials = (name: string) => {
+    if (!name) return "U";
+    const parts = name.trim().split(" ");
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return parts[0].substring(0, 2).toUpperCase();
+  };
 
   return (
     <header className="sticky top-0 z-30 w-full backdrop-blur-md bg-white/80 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 transition-colors">
@@ -47,6 +63,38 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Action Buttons */}
         <div className="flex items-center flex-wrap gap-2 w-full sm:w-auto justify-end">
+          {/* User Account / Auth Status */}
+          {user ? (
+            <div className="flex items-center gap-2 pl-2 pr-1 py-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700/60">
+              <div className="h-7 w-7 rounded-lg bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shadow-xs">
+                {getInitials(user.name)}
+              </div>
+              <div className="hidden md:block text-left pr-1">
+                <p className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-tight">
+                  {user.name}
+                </p>
+                <p className="text-[10px] text-slate-400 leading-tight truncate max-w-[110px]">
+                  {user.email}
+                </p>
+              </div>
+              <button
+                onClick={onLogout}
+                className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                title="Sign Out"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onOpenAuthModal}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 transition-colors"
+            >
+              <LogIn className="h-4 w-4" />
+              <span>Sign In / Register</span>
+            </button>
+          )}
+
           <button
             onClick={onOpenCategoryManager}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium rounded-lg text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors"

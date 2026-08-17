@@ -3,11 +3,10 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Expense, Category, ExpenseFilter, SummaryMetrics, DaySpending, CategorySpending } from "@/types/expense";
 import { getStoredExpenses, saveStoredExpenses, getStoredCategories, saveStoredCategories, resetToSeedData } from "@/lib/storage";
-import { DEFAULT_CATEGORIES, SEED_EXPENSES } from "@/lib/constants";
 import { isDateInWeek, isDateInMonth, generateId } from "@/lib/utils";
 import { startOfWeek, addDays, format, parseISO, isSameDay } from "date-fns";
 
-export function useExpenseTracker() {
+export function useExpenseTracker(userId: string = "user-demo-101") {
   const [isLoaded, setIsLoaded] = useState(false);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -21,14 +20,15 @@ export function useExpenseTracker() {
     sortBy: "date-desc",
   });
 
-  // Hydrate from LocalStorage on mount
+  // Re-hydrate from LocalStorage when userId changes
   useEffect(() => {
-    const storedExp = getStoredExpenses();
-    const storedCat = getStoredCategories();
+    setIsLoaded(false);
+    const storedExp = getStoredExpenses(userId);
+    const storedCat = getStoredCategories(userId);
     setExpenses(storedExp);
     setCategories(storedCat);
     setIsLoaded(true);
-  }, []);
+  }, [userId]);
 
   // Save expenses on update
   const addExpense = useCallback((data: Omit<Expense, "id" | "createdAt">) => {
@@ -39,26 +39,26 @@ export function useExpenseTracker() {
     };
     setExpenses((prev) => {
       const updated = [newExpense, ...prev];
-      saveStoredExpenses(updated);
+      saveStoredExpenses(updated, userId);
       return updated;
     });
-  }, []);
+  }, [userId]);
 
   const updateExpense = useCallback((id: string, data: Partial<Omit<Expense, "id">>) => {
     setExpenses((prev) => {
       const updated = prev.map((item) => (item.id === id ? { ...item, ...data } : item));
-      saveStoredExpenses(updated);
+      saveStoredExpenses(updated, userId);
       return updated;
     });
-  }, []);
+  }, [userId]);
 
   const deleteExpense = useCallback((id: string) => {
     setExpenses((prev) => {
       const updated = prev.filter((item) => item.id !== id);
-      saveStoredExpenses(updated);
+      saveStoredExpenses(updated, userId);
       return updated;
     });
-  }, []);
+  }, [userId]);
 
   // Category management
   const addCategory = useCallback((data: Omit<Category, "id">) => {
@@ -68,44 +68,44 @@ export function useExpenseTracker() {
     };
     setCategories((prev) => {
       const updated = [...prev, newCategory];
-      saveStoredCategories(updated);
+      saveStoredCategories(updated, userId);
       return updated;
     });
-  }, []);
+  }, [userId]);
 
   const updateCategory = useCallback((id: string, data: Partial<Omit<Category, "id">>) => {
     setCategories((prev) => {
       const updated = prev.map((cat) => (cat.id === id ? { ...cat, ...data } : cat));
-      saveStoredCategories(updated);
+      saveStoredCategories(updated, userId);
       return updated;
     });
-  }, []);
+  }, [userId]);
 
   const deleteCategory = useCallback((id: string, reassignCategoryId?: string) => {
     const targetReassign = reassignCategoryId || "cat-other";
     setCategories((prev) => {
       const updatedCat = prev.filter((cat) => cat.id !== id);
-      saveStoredCategories(updatedCat);
+      saveStoredCategories(updatedCat, userId);
       return updatedCat;
     });
     // Reassign affected expenses
     setExpenses((prev) => {
       const updatedExp = prev.map((exp) => (exp.categoryId === id ? { ...exp, categoryId: targetReassign } : exp));
-      saveStoredExpenses(updatedExp);
+      saveStoredExpenses(updatedExp, userId);
       return updatedExp;
     });
-  }, []);
+  }, [userId]);
 
   const resetAllData = useCallback(() => {
-    const seed = resetToSeedData();
+    const seed = resetToSeedData(userId);
     setExpenses(seed.expenses);
     setCategories(seed.categories);
-  }, []);
+  }, [userId]);
 
   const refreshFromStorage = useCallback(() => {
-    setExpenses(getStoredExpenses());
-    setCategories(getStoredCategories());
-  }, []);
+    setExpenses(getStoredExpenses(userId));
+    setCategories(getStoredCategories(userId));
+  }, [userId]);
 
   // Filtered expenses list
   const filteredExpenses = useMemo(() => {
@@ -188,69 +188,6 @@ export function useExpenseTracker() {
     };
   }, [expenses, categories, referenceDate]);
 
-  // Weekly Overview Data (Monday through Sunday for current reference date)
-  const weeklyChartData: DaySpending[] = useMemo(() => {
-    const monday = startOfWeek(referenceDate, { weekStartsOn: 1 });
-    const today = new Date();
-
-    return Array.from({ length: 7 }).map((_, idx) => {
-      const dayDate = addDays(monday, idx);
-      const dateStr = format(dayDate, "yyyy-MM-dd");
-      const dayName = format(dayDate, "EEE"); // Mon, Tue, etc.
-      const fullDateLabel = format(dayDate, "MMM d");
-
-      const amount = expenses
-        .filter((exp) => exp.date === dateStr)
-        .reduce((sum, item) => sum + item.amount, 0);
-
-      return {
-        day: dayName,
-        dateStr,
-        fullDateLabel,
-        amount,
-        isToday: isSameDay(dayDate, today),
-      };
-    });
-  }, [expenses, referenceDate]);
-
-  // Monthly Overview Category Data (Pie / Donut chart for selected month)
-  const monthlyCategoryChartData: CategorySpending[] = useMemo(() => {
-    const categoryTotals: Record<string, { amount: number; count: number }> = {};
-    let monthTotal = 0;
-
-    expenses.forEach((exp) => {
-      if (isDateInMonth(exp.date, referenceDate)) {
-        monthTotal += exp.amount;
-        if (!categoryTotals[exp.categoryId]) {
-          categoryTotals[exp.categoryId] = { amount: 0, count: 0 };
-        }
-        categoryTotals[exp.categoryId].amount += exp.amount;
-        categoryTotals[exp.categoryId].count += 1;
-      }
-    });
-
-    return Object.entries(categoryTotals)
-      .map(([catId, { amount, count }]) => {
-        const cat = categories.find((c) => c.id === catId) || {
-          id: catId,
-          name: "Unknown",
-          color: "#6B7280",
-          icon: "MoreHorizontal",
-        };
-        const percentage = monthTotal > 0 ? (amount / monthTotal) * 100 : 0;
-        return {
-          categoryId: catId,
-          name: cat.name,
-          amount,
-          color: cat.color,
-          icon: cat.icon,
-          percentage,
-          count,
-        };
-      })
-      .sort((a, b) => b.amount - a.amount);
-  }, [expenses, categories, referenceDate]);
-
   return {
     isLoaded,
     expenses,
@@ -259,8 +196,6 @@ export function useExpenseTracker() {
     setFilter,
     filteredExpenses,
     metrics,
-    weeklyChartData,
-    monthlyCategoryChartData,
     referenceDate,
     setReferenceDate,
     addExpense,
