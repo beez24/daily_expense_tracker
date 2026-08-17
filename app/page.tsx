@@ -15,6 +15,7 @@ import { Heart, ShieldCheck, Sparkles } from "lucide-react";
 export default function TrackerPage() {
   const {
     isLoaded,
+    expenses,
     categories,
     filter,
     setFilter,
@@ -105,10 +106,10 @@ export default function TrackerPage() {
         {/* 1. Summary Metrics Cards */}
         <MetricCards metrics={metrics} />
 
-        {/* 2. Visualizations Section (Weekly Bar Chart & Monthly Donut Chart) */}
+        {/* 2. Visualizations Section with Time Period Filters */}
         <Visualizations
-          weeklyData={weeklyChartData}
-          monthlyData={monthlyCategoryChartData}
+          expenses={expenses}
+          categories={categories}
         />
 
         {/* 3. Transaction Expense List */}
