@@ -185,6 +185,7 @@ export default function TrackerPage() {
       />
 
       <ExportImportModal
+        userId={userId}
         isOpen={isBackupModalOpen}
         onClose={() => setIsBackupModalOpen(false)}
         onDataImported={refreshFromStorage}

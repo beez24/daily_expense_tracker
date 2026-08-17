@@ -2,9 +2,10 @@
 
 import React, { useState, useRef } from "react";
 import { exportBackupData, importBackupData } from "@/lib/storage";
-import { X, Download, Upload, RefreshCw, CheckCircle2, AlertCircle, Database } from "lucide-react";
+import { X, Download, Upload, RefreshCw, CheckCircle2, AlertCircle, Database, FileSpreadsheet } from "lucide-react";
 
 interface ExportImportModalProps {
+  userId?: string;
   isOpen: boolean;
   onClose: () => void;
   onDataImported: () => void;
@@ -12,6 +13,7 @@ interface ExportImportModalProps {
 }
 
 export const ExportImportModal: React.FC<ExportImportModalProps> = ({
+  userId = "user-demo-101",
   isOpen,
   onClose,
   onDataImported,
@@ -24,7 +26,7 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
 
   const handleExportJSON = () => {
     try {
-      const jsonStr = exportBackupData();
+      const jsonStr = exportBackupData(userId);
       const blob = new Blob([jsonStr], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -35,7 +37,7 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      setFeedback({ type: "success", message: "JSON backup downloaded successfully!" });
+      setFeedback({ type: "success", message: "JSON backup downloaded successfully with your latest categories and expenses!" });
     } catch (err) {
       setFeedback({ type: "error", message: "Failed to export data." });
     }
@@ -49,7 +51,7 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
     reader.onload = (event) => {
       const content = event.target?.result as string;
       if (content) {
-        const res = importBackupData(content);
+        const res = importBackupData(content, userId);
         if (res.success) {
           setFeedback({ type: "success", message: res.message });
           onDataImported();
@@ -114,14 +116,14 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
               Export Backup JSON
             </h4>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Download your expenses and categories as a portable JSON file.
+              Download your active user's expenses and custom categories as a JSON backup file.
             </p>
             <button
               onClick={handleExportJSON}
               className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all"
             >
               <Download className="h-4 w-4" />
-              Export Data (.json)
+              Export Active Data (.json)
             </button>
           </div>
 
@@ -131,7 +133,7 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
               Restore from Backup
             </h4>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Upload a previously exported JSON backup file.
+              Upload a previously exported JSON backup file into your account.
             </p>
             <input
               type="file"
