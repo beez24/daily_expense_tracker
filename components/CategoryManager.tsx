@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Category } from "@/types/expense";
 import { CategoryIcon } from "./CategoryIcon";
-import { AVAILABLE_COLORS, AVAILABLE_ICONS } from "@/lib/constants";
+import { AVAILABLE_COLORS, AVAILABLE_ICONS, ICON_GROUPS } from "@/lib/constants";
 import { X, Plus, Edit2, Trash2, Check, SlidersHorizontal, Tag } from "lucide-react";
 
 interface CategoryManagerProps {
@@ -25,6 +25,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
 }) => {
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [activeIconGroup, setActiveIconGroup] = useState<string>("Kids & Family");
 
   // Form states
   const [name, setName] = useState("");
@@ -90,6 +91,11 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
     }
   };
 
+  const displayedIcons =
+    activeIconGroup === "All"
+      ? AVAILABLE_ICONS
+      : ICON_GROUPS.find((g) => g.name === activeIconGroup)?.icons || AVAILABLE_ICONS;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden transition-all flex flex-col max-h-[90vh]">
@@ -135,7 +141,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Travel, Coffee, Pets..."
+                  placeholder="e.g. Kids Swim, Daycare, Coffee..."
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -166,20 +172,41 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
                 </div>
               </div>
 
-              {/* Icon Selector */}
+              {/* Categorized Icon Selector */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Icon
-                </label>
-                <div className="grid grid-cols-6 sm:grid-cols-9 gap-1.5 max-h-36 overflow-y-auto p-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
-                  {AVAILABLE_ICONS.map((iconName) => (
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Icon Selection
+                  </label>
+
+                  {/* Icon Group Tabs */}
+                  <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                    {["Kids & Family", "Daily Life & Household", "All"].map((grpName) => (
+                      <button
+                        key={grpName}
+                        type="button"
+                        onClick={() => setActiveIconGroup(grpName)}
+                        className={`px-2 py-0.5 text-[10px] font-semibold rounded-md transition-colors ${
+                          activeIconGroup === grpName
+                            ? "bg-indigo-600 text-white"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                        }`}
+                      >
+                        {grpName === "Daily Life & Household" ? "Daily Life" : grpName}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-6 sm:grid-cols-9 gap-1.5 max-h-40 overflow-y-auto p-1.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+                  {displayedIcons.map((iconName) => (
                     <button
                       key={iconName}
                       type="button"
                       onClick={() => setIcon(iconName)}
                       className={`p-2 rounded-lg flex items-center justify-center transition-colors ${
                         icon === iconName
-                          ? "bg-indigo-600 text-white"
+                          ? "bg-indigo-600 text-white shadow-sm"
                           : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                       }`}
                       title={iconName}

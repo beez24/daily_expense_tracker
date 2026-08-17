@@ -5,32 +5,78 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { id: "cat-shopping", name: "Shopping", color: "#EC4899", icon: "ShoppingBag", isDefault: true },
   { id: "cat-housing", name: "Housing & Rent", color: "#3B82F6", icon: "Home", isDefault: true },
   { id: "cat-transport", name: "Transportation", color: "#8B5CF6", icon: "Car", isDefault: true },
+  { id: "cat-kids", name: "Kids & Childcare", color: "#F43F5E", icon: "Baby", isDefault: true },
+  { id: "cat-school", name: "School & Education", color: "#0284C7", icon: "School", isDefault: true },
   { id: "cat-entertainment", name: "Entertainment", color: "#10B981", icon: "Film", isDefault: true },
   { id: "cat-utilities", name: "Bills & Utilities", color: "#06B6D4", icon: "Zap", isDefault: true },
   { id: "cat-health", name: "Health & Fitness", color: "#EF4444", icon: "HeartPulse", isDefault: true },
   { id: "cat-other", name: "Miscellaneous", color: "#6B7280", icon: "MoreHorizontal", isDefault: true },
 ];
 
-export const AVAILABLE_ICONS = [
-  "Utensils",
-  "ShoppingBag",
-  "Home",
-  "Car",
-  "Film",
-  "Zap",
-  "HeartPulse",
-  "MoreHorizontal",
-  "Coffee",
-  "Plane",
-  "BookOpen",
-  "Gift",
-  "Smartphone",
-  "Briefcase",
-  "Tv",
-  "Dumbbell",
-  "Wrench",
-  "GraduationCap",
+export const ICON_GROUPS = [
+  {
+    name: "Kids & Family",
+    icons: [
+      "Baby",
+      "ToyBrick",
+      "Gamepad2",
+      "School",
+      "GraduationCap",
+      "BookOpen",
+      "Palette",
+      "Trophy",
+      "PartyPopper",
+      "Cake",
+      "Apple",
+      "Footprints",
+      "Stethoscope",
+      "Smile",
+    ],
+  },
+  {
+    name: "Daily Life & Household",
+    icons: [
+      "Utensils",
+      "Coffee",
+      "ShoppingBag",
+      "ShoppingCart",
+      "Home",
+      "Car",
+      "Fuel",
+      "Zap",
+      "Wifi",
+      "Smartphone",
+      "Tv",
+      "Shirt",
+      "Scissors",
+      "Wrench",
+      "Briefcase",
+      "CreditCard",
+      "PiggyBank",
+      "Gift",
+      "Dog",
+      "Cat",
+      "HeartPulse",
+      "Pill",
+      "Sparkles",
+      "Clock",
+      "Bus",
+      "Plane",
+      "Bike",
+      "Key",
+      "Camera",
+      "Music",
+      "Globe",
+      "Flame",
+      "Film",
+      "MoreHorizontal",
+    ],
+  },
 ];
+
+export const AVAILABLE_ICONS = Array.from(
+  new Set(ICON_GROUPS.flatMap((group) => group.icons))
+);
 
 export const AVAILABLE_COLORS = [
   "#F59E0B", // Amber
@@ -47,10 +93,11 @@ export const AVAILABLE_COLORS = [
   "#6366F1", // Indigo
   "#D946EF", // Fuchsia
   "#0284C7", // Sky
+  "#F43F5E", // Rose
+  "#EAB308", // Yellow
 ];
 
 // Helper to construct sample dates relative to current date (2026-08-15 is Saturday)
-// Week: Aug 10 (Mon) to Aug 16 (Sun)
 export const SEED_EXPENSES: Expense[] = [
   {
     id: "exp-101",
@@ -78,11 +125,11 @@ export const SEED_EXPENSES: Expense[] = [
   },
   {
     id: "exp-104",
-    amount: 29.99,
+    amount: 65.00,
     date: "2026-08-14",
-    categoryId: "cat-entertainment",
-    description: "Cinema Tickets & Popcorn",
-    createdAt: new Date("2026-08-14T20:00:00").toISOString(),
+    categoryId: "cat-kids",
+    description: "Kids Swim Class & Playdate",
+    createdAt: new Date("2026-08-14T15:00:00").toISOString(),
   },
   {
     id: "exp-105",
@@ -102,10 +149,10 @@ export const SEED_EXPENSES: Expense[] = [
   },
   {
     id: "exp-107",
-    amount: 65.00,
+    amount: 145.00,
     date: "2026-08-11",
-    categoryId: "cat-utilities",
-    description: "High-Speed Internet Subscription",
+    categoryId: "cat-school",
+    description: "School Textbooks & Art Supplies",
     createdAt: new Date("2026-08-11T09:00:00").toISOString(),
   },
   {
@@ -131,13 +178,5 @@ export const SEED_EXPENSES: Expense[] = [
     categoryId: "cat-health",
     description: "Monthly Gym & Spa Membership",
     createdAt: new Date("2026-08-05T07:30:00").toISOString(),
-  },
-  {
-    id: "exp-111",
-    amount: 38.70,
-    date: "2026-08-08",
-    categoryId: "cat-shopping",
-    description: "Home Decor & Desk Accessories",
-    createdAt: new Date("2026-08-08T15:10:00").toISOString(),
   },
 ];
