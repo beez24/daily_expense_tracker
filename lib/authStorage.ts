@@ -8,25 +8,14 @@ interface StoredUserAccount extends User {
   passwordHash: string;
 }
 
-const DEMO_USER: StoredUserAccount = {
-  id: "user-demo-101",
-  name: "Alex Morgan",
-  email: "demo@example.com",
-  passwordHash: "password123",
-  createdAt: "2026-08-01T00:00:00.000Z",
-};
-
 export function getStoredUsers(): StoredUserAccount[] {
-  if (typeof window === "undefined") return [DEMO_USER];
+  if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(USERS_KEY);
-    if (!raw) {
-      localStorage.setItem(USERS_KEY, JSON.stringify([DEMO_USER]));
-      return [DEMO_USER];
-    }
+    if (!raw) return [];
     return JSON.parse(raw);
   } catch (error) {
-    return [DEMO_USER];
+    return [];
   }
 }
 
@@ -43,17 +32,7 @@ export function getActiveSession(): User | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(SESSION_KEY);
-    if (!raw) {
-      // Default to demo user session on very first visit
-      const demoSession: User = {
-        id: DEMO_USER.id,
-        name: DEMO_USER.name,
-        email: DEMO_USER.email,
-        createdAt: DEMO_USER.createdAt,
-      };
-      localStorage.setItem(SESSION_KEY, JSON.stringify(demoSession));
-      return demoSession;
-    }
+    if (!raw) return null;
     return JSON.parse(raw);
   } catch (error) {
     return null;
@@ -85,14 +64,14 @@ export function registerUser(credentials: SignupCredentials): { success: boolean
   const existing = users.find((u) => u.email.toLowerCase() === normalizedEmail);
 
   if (existing) {
-    return { success: false, message: "An account with this email address already exists." };
+    return { success: false, message: "An account with this email address already exists. Please sign in." };
   }
 
   const newUser: StoredUserAccount = {
     id: "user-" + generateId(),
     name: name.trim(),
     email: normalizedEmail,
-    passwordHash: password, // Stored locally
+    passwordHash: password,
     createdAt: new Date().toISOString(),
   };
 
@@ -118,7 +97,7 @@ export function authenticateUser(credentials: LoginCredentials): { success: bool
   const account = users.find((u) => u.email.toLowerCase() === normalizedEmail);
 
   if (!account) {
-    return { success: false, message: "No account found with this email address." };
+    return { success: false, message: "No account found with this email address. Please create an account." };
   }
 
   if (account.passwordHash !== password) {

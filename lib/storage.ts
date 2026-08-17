@@ -1,28 +1,27 @@
 import { Category, Expense } from "@/types/expense";
-import { DEFAULT_CATEGORIES, SEED_EXPENSES } from "./constants";
+import { DEFAULT_CATEGORIES } from "./constants";
 
 const EXPENSES_PREFIX = "daily_expense_tracker_expenses_";
 const CATEGORIES_PREFIX = "daily_expense_tracker_categories_";
 
-export function getStoredExpenses(userId: string = "user-demo-101"): Expense[] {
-  if (typeof window === "undefined") return SEED_EXPENSES;
+export function getStoredExpenses(userId: string): Expense[] {
+  if (typeof window === "undefined" || !userId) return [];
   try {
     const key = EXPENSES_PREFIX + userId;
     const raw = localStorage.getItem(key);
     if (!raw) {
-      // Seed default expenses for new account
-      localStorage.setItem(key, JSON.stringify(SEED_EXPENSES));
-      return SEED_EXPENSES;
+      localStorage.setItem(key, JSON.stringify([]));
+      return [];
     }
     return JSON.parse(raw);
   } catch (error) {
     console.error("Error reading expenses from LocalStorage:", error);
-    return SEED_EXPENSES;
+    return [];
   }
 }
 
-export function saveStoredExpenses(expenses: Expense[], userId: string = "user-demo-101"): void {
-  if (typeof window === "undefined") return;
+export function saveStoredExpenses(expenses: Expense[], userId: string): void {
+  if (typeof window === "undefined" || !userId) return;
   try {
     const key = EXPENSES_PREFIX + userId;
     localStorage.setItem(key, JSON.stringify(expenses));
@@ -31,8 +30,8 @@ export function saveStoredExpenses(expenses: Expense[], userId: string = "user-d
   }
 }
 
-export function getStoredCategories(userId: string = "user-demo-101"): Category[] {
-  if (typeof window === "undefined") return DEFAULT_CATEGORIES;
+export function getStoredCategories(userId: string): Category[] {
+  if (typeof window === "undefined" || !userId) return DEFAULT_CATEGORIES;
   try {
     const key = CATEGORIES_PREFIX + userId;
     const raw = localStorage.getItem(key);
@@ -47,8 +46,8 @@ export function getStoredCategories(userId: string = "user-demo-101"): Category[
   }
 }
 
-export function saveStoredCategories(categories: Category[], userId: string = "user-demo-101"): void {
-  if (typeof window === "undefined") return;
+export function saveStoredCategories(categories: Category[], userId: string): void {
+  if (typeof window === "undefined" || !userId) return;
   try {
     const key = CATEGORIES_PREFIX + userId;
     localStorage.setItem(key, JSON.stringify(categories));
@@ -57,18 +56,20 @@ export function saveStoredCategories(categories: Category[], userId: string = "u
   }
 }
 
-export function exportBackupData(userId: string = "user-demo-101"): string {
+export function exportBackupData(userId: string): string {
+  const categories = getStoredCategories(userId);
+  const expenses = getStoredExpenses(userId);
   const data = {
     version: 1,
     exportedAt: new Date().toISOString(),
     userId,
-    categories: getStoredCategories(userId),
-    expenses: getStoredExpenses(userId),
+    categories,
+    expenses,
   };
   return JSON.stringify(data, null, 2);
 }
 
-export function importBackupData(jsonString: string, userId: string = "user-demo-101"): { success: boolean; message: string } {
+export function importBackupData(jsonString: string, userId: string): { success: boolean; message: string } {
   try {
     const data = JSON.parse(jsonString);
     if (!data.expenses || !Array.isArray(data.expenses) || !data.categories || !Array.isArray(data.categories)) {
@@ -82,12 +83,12 @@ export function importBackupData(jsonString: string, userId: string = "user-demo
   }
 }
 
-export function resetToSeedData(userId: string = "user-demo-101"): { expenses: Expense[]; categories: Category[] } {
-  if (typeof window !== "undefined") {
+export function resetToSeedData(userId: string): { expenses: Expense[]; categories: Category[] } {
+  if (typeof window !== "undefined" && userId) {
     const expKey = EXPENSES_PREFIX + userId;
     const catKey = CATEGORIES_PREFIX + userId;
-    localStorage.setItem(expKey, JSON.stringify(SEED_EXPENSES));
+    localStorage.setItem(expKey, JSON.stringify([]));
     localStorage.setItem(catKey, JSON.stringify(DEFAULT_CATEGORIES));
   }
-  return { expenses: SEED_EXPENSES, categories: DEFAULT_CATEGORIES };
+  return { expenses: [], categories: DEFAULT_CATEGORIES };
 }

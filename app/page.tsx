@@ -10,13 +10,13 @@ import { ExpenseList } from "@/components/ExpenseList";
 import { ExpenseForm } from "@/components/ExpenseForm";
 import { CategoryManager } from "@/components/CategoryManager";
 import { ExportImportModal } from "@/components/ExportImportModal";
-import { AuthModal } from "@/components/AuthModal";
+import { AuthView } from "@/components/AuthView";
 import { Expense } from "@/types/expense";
-import { Sparkles, LogIn, UserPlus } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 export default function TrackerPage() {
-  const { user, login, signup, logout } = useAuth();
-  const userId = user?.id || "user-demo-101";
+  const { user, isAuthenticated, isLoading: authLoading, login, signup, logout } = useAuth();
+  const userId = user?.id || "";
 
   const {
     isLoaded,
@@ -41,9 +41,25 @@ export default function TrackerPage() {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
-  // Form Handlers
+  // Loading state
+  if (authLoading || (isAuthenticated && !isLoaded)) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4">
+        <div className="h-10 w-10 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin mb-4" />
+        <p className="text-sm font-semibold text-slate-600 dark:text-slate-400 animate-pulse">
+          Loading your daily expense workspace...
+        </p>
+      </div>
+    );
+  }
+
+  // Unauthenticated State: Show full-page Auth Landing Page
+  if (!isAuthenticated || !user) {
+    return <AuthView onLogin={login} onSignup={signup} />;
+  }
+
+  // Authenticated State: Main Tracker Workspace
   const handleOpenAddForm = () => {
     setEditingExpense(null);
     setIsFormOpen(true);
@@ -62,17 +78,6 @@ export default function TrackerPage() {
     }
   };
 
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4">
-        <div className="h-10 w-10 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin mb-4" />
-        <p className="text-sm font-semibold text-slate-600 dark:text-slate-400 animate-pulse">
-          Loading your daily expense workspace...
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
       {/* Header Navbar */}
@@ -81,7 +86,7 @@ export default function TrackerPage() {
         onOpenExpenseForm={handleOpenAddForm}
         onOpenCategoryManager={() => setIsCategoryManagerOpen(true)}
         onOpenBackupModal={() => setIsBackupModalOpen(true)}
-        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onOpenAuthModal={() => {}}
         onLogout={logout}
       />
 
@@ -95,32 +100,19 @@ export default function TrackerPage() {
             </div>
             <div>
               <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                {user ? `Welcome back, ${user.name}!` : "Daily Financial Overview"}
+                Welcome back, {user.name}!
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                {user
-                  ? `Active Session: ${user.email} • Track everyday purchases & stay on budget.`
-                  : "Track everyday purchases, stay on budget, and analyze categorical habits."}
+                Active Account: <span className="font-semibold text-slate-700 dark:text-slate-300">{user.email}</span> • Track everyday purchases & stay on budget.
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            {!user && (
-              <button
-                onClick={() => setIsAuthModalOpen(true)}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
-              >
-                <LogIn className="h-3.5 w-3.5" />
-                <span>Sign In / Create Account</span>
-              </button>
-            )}
-            <button
-              onClick={handleOpenAddForm}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-slate-800 transition-colors"
-            >
-              + Quick Add Transaction
-            </button>
-          </div>
+          <button
+            onClick={handleOpenAddForm}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-slate-800 transition-colors"
+          >
+            + Quick Add Transaction
+          </button>
         </div>
 
         {/* 1. Summary Metrics Cards */}
@@ -190,13 +182,6 @@ export default function TrackerPage() {
         onClose={() => setIsBackupModalOpen(false)}
         onDataImported={refreshFromStorage}
         onDataReset={resetAllData}
-      />
-
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        onLogin={login}
-        onSignup={signup}
       />
     </div>
   );
