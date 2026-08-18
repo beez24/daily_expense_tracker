@@ -1,16 +1,32 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Expense, Category, ExpenseFilter, SummaryMetrics, DaySpending, CategorySpending } from "@/types/expense";
-import { getStoredExpenses, saveStoredExpenses, getStoredCategories, saveStoredCategories, resetToSeedData } from "@/lib/storage";
-import { isDateInWeek, isDateInMonth, generateId } from "@/lib/utils";
-import { startOfWeek, addDays, format, parseISO, isSameDay } from "date-fns";
+import {
+  Expense,
+  Category,
+  ExpenseFilter,
+  SummaryMetrics,
+} from "@/types/expense";
+import {
+  dbGetCategories,
+  dbSeedDefaultCategories,
+  dbAddCategory,
+  dbUpdateCategory,
+  dbDeleteCategory,
+  dbGetExpenses,
+  dbAddExpense,
+  dbUpdateExpense,
+  dbDeleteExpense,
+  dbResetUserData,
+  dbBulkAddExpenses,
+  dbRestoreBackup,
+} from "@/lib/db";
+import { isDateInWeek, isDateInMonth } from "@/lib/utils";
 
-export function useExpenseTracker(userId: string = "user-demo-101") {
+export function useExpenseTracker(userId: string = "") {
   const [isLoaded, setIsLoaded] = useState(false);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [referenceDate, setReferenceDate] = useState<Date>(new Date("2026-08-15"));
 
   const [filter, setFilter] = useState<ExpenseFilter>({
     searchQuery: "",
@@ -20,117 +36,124 @@ export function useExpenseTracker(userId: string = "user-demo-101") {
     sortBy: "date-desc",
   });
 
-  // Re-hydrate from LocalStorage when userId changes
-  useEffect(() => {
+  // ─── Load from Supabase on mount / userId change ─────────────────────────
+  const loadData = useCallback(async () => {
+    if (!userId) return;
     setIsLoaded(false);
-    const storedExp = getStoredExpenses(userId);
-    const storedCat = getStoredCategories(userId);
-    setExpenses(storedExp);
-    setCategories(storedCat);
+
+    const [cats, exps] = await Promise.all([
+      dbGetCategories(userId),
+      dbGetExpenses(userId),
+    ]);
+
+    // Seed default categories for brand-new users
+    if (cats.length === 0) {
+      const seeded = await dbSeedDefaultCategories(userId);
+      setCategories(seeded);
+    } else {
+      setCategories(cats);
+    }
+
+    setExpenses(exps);
     setIsLoaded(true);
   }, [userId]);
 
-  // Save expenses on update
-  const addExpense = useCallback((data: Omit<Expense, "id" | "createdAt">) => {
-    const newExpense: Expense = {
-      ...data,
-      id: generateId(),
-      createdAt: new Date().toISOString(),
-    };
-    setExpenses((prev) => {
-      const updated = [newExpense, ...prev];
-      saveStoredExpenses(updated, userId);
-      return updated;
-    });
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // ─── Expense CRUD ─────────────────────────────────────────────────────────
+  const addExpense = useCallback(async (data: Omit<Expense, "id" | "createdAt">) => {
+    const newExp = await dbAddExpense(userId, data);
+    if (newExp) setExpenses((prev) => [newExp, ...prev]);
   }, [userId]);
 
-  const updateExpense = useCallback((id: string, data: Partial<Omit<Expense, "id">>) => {
-    setExpenses((prev) => {
-      const updated = prev.map((item) => (item.id === id ? { ...item, ...data } : item));
-      saveStoredExpenses(updated, userId);
-      return updated;
-    });
+  const updateExpense = useCallback(async (id: string, data: Partial<Omit<Expense, "id">>) => {
+    const updated = await dbUpdateExpense(id, data);
+    if (updated) {
+      setExpenses((prev) => prev.map((e) => (e.id === id ? updated : e)));
+    }
+  }, []);
+
+  const deleteExpense = useCallback(async (id: string) => {
+    const ok = await dbDeleteExpense(id);
+    if (ok) setExpenses((prev) => prev.filter((e) => e.id !== id));
+  }, []);
+
+  // ─── Category CRUD ────────────────────────────────────────────────────────
+  const addCategory = useCallback(async (data: Omit<Category, "id">) => {
+    const newCat = await dbAddCategory(userId, data);
+    if (newCat) setCategories((prev) => [...prev, newCat]);
   }, [userId]);
 
-  const deleteExpense = useCallback((id: string) => {
-    setExpenses((prev) => {
-      const updated = prev.filter((item) => item.id !== id);
-      saveStoredExpenses(updated, userId);
-      return updated;
-    });
+  const updateCategory = useCallback(async (id: string, data: Partial<Omit<Category, "id">>) => {
+    const updated = await dbUpdateCategory(id, data);
+    if (updated) {
+      setCategories((prev) => prev.map((c) => (c.id === id ? updated : c)));
+    }
+  }, []);
+
+  const deleteCategory = useCallback(async (id: string, reassignCategoryId?: string) => {
+    const ok = await dbDeleteCategory(id);
+    if (!ok) return;
+
+    setCategories((prev) => prev.filter((c) => c.id !== id));
+
+    // Reassign affected expenses in local state (DB handles via ON DELETE SET NULL)
+    const fallbackId = reassignCategoryId ?? categories[0]?.id ?? "";
+    setExpenses((prev) =>
+      prev.map((e) => (e.categoryId === id ? { ...e, categoryId: fallbackId } : e))
+    );
+  }, [categories]);
+
+  // ─── Bulk / Reset ─────────────────────────────────────────────────────────
+  const bulkAddExpenses = useCallback(async (
+    expensesToAdd: Omit<Expense, "id" | "createdAt">[]
+  ): Promise<{ inserted: number; error?: string }> => {
+    const result = await dbBulkAddExpenses(userId, expensesToAdd);
+    if (result.inserted > 0) {
+      // Reload to get all new rows with real UUIDs
+      const fresh = await dbGetExpenses(userId);
+      setExpenses(fresh);
+    }
+    return result;
   }, [userId]);
 
-  // Category management
-  const addCategory = useCallback((data: Omit<Category, "id">) => {
-    const newCategory: Category = {
-      ...data,
-      id: "cat-" + Math.random().toString(36).substring(2, 9),
-    };
-    setCategories((prev) => {
-      const updated = [...prev, newCategory];
-      saveStoredCategories(updated, userId);
-      return updated;
-    });
+  const resetAllData = useCallback(async () => {
+    const seeded = await dbResetUserData(userId);
+    setCategories(seeded);
+    setExpenses([]);
   }, [userId]);
 
-  const updateCategory = useCallback((id: string, data: Partial<Omit<Category, "id">>) => {
-    setCategories((prev) => {
-      const updated = prev.map((cat) => (cat.id === id ? { ...cat, ...data } : cat));
-      saveStoredCategories(updated, userId);
-      return updated;
-    });
+  const refreshFromStorage = useCallback(async () => {
+    await loadData();
+  }, [loadData]);
+
+  const restoreBackup = useCallback(async (
+    backupCategories: Omit<Category, "id">[],
+    backupExpenses: Omit<Expense, "id" | "createdAt">[]
+  ) => {
+    const result = await dbRestoreBackup(userId, backupCategories, backupExpenses);
+    setCategories(result.categories);
+    setExpenses(result.expenses);
   }, [userId]);
 
-  const deleteCategory = useCallback((id: string, reassignCategoryId?: string) => {
-    const targetReassign = reassignCategoryId || "cat-other";
-    setCategories((prev) => {
-      const updatedCat = prev.filter((cat) => cat.id !== id);
-      saveStoredCategories(updatedCat, userId);
-      return updatedCat;
-    });
-    // Reassign affected expenses
-    setExpenses((prev) => {
-      const updatedExp = prev.map((exp) => (exp.categoryId === id ? { ...exp, categoryId: targetReassign } : exp));
-      saveStoredExpenses(updatedExp, userId);
-      return updatedExp;
-    });
-  }, [userId]);
-
-  const resetAllData = useCallback(() => {
-    const seed = resetToSeedData(userId);
-    setExpenses(seed.expenses);
-    setCategories(seed.categories);
-  }, [userId]);
-
-  const refreshFromStorage = useCallback(() => {
-    setExpenses(getStoredExpenses(userId));
-    setCategories(getStoredCategories(userId));
-  }, [userId]);
-
-  // Filtered expenses list
+  // ─── Filtered Expenses ────────────────────────────────────────────────────
   const filteredExpenses = useMemo(() => {
     return expenses
       .filter((exp) => {
-        // Search query filter (matches category name or description)
         if (filter.searchQuery.trim()) {
           const query = filter.searchQuery.toLowerCase();
-          const categoryObj = categories.find((c) => c.id === exp.categoryId);
-          const categoryName = categoryObj ? categoryObj.name.toLowerCase() : "";
+          const cat = categories.find((c) => c.id === exp.categoryId);
+          const catName = cat ? cat.name.toLowerCase() : "";
           const desc = (exp.description || "").toLowerCase();
-          const amountStr = exp.amount.toString();
-          const matches = categoryName.includes(query) || desc.includes(query) || amountStr.includes(query);
-          if (!matches) return false;
+          if (!catName.includes(query) && !desc.includes(query) && !exp.amount.toString().includes(query)) {
+            return false;
+          }
         }
-
-        // Category filter
-        if (filter.categoryId !== "all" && exp.categoryId !== filter.categoryId) {
-          return false;
-        }
-
-        // Date Range filters
+        if (filter.categoryId !== "all" && exp.categoryId !== filter.categoryId) return false;
         if (filter.startDate && exp.date < filter.startDate) return false;
         if (filter.endDate && exp.date > filter.endDate) return false;
-
         return true;
       })
       .sort((a, b) => {
@@ -142,17 +165,17 @@ export function useExpenseTracker(userId: string = "user-demo-101") {
       });
   }, [expenses, categories, filter]);
 
-  // Derived Metrics
+  // ─── Summary Metrics ──────────────────────────────────────────────────────
+  const today = new Date();
+
   const metrics: SummaryMetrics = useMemo(() => {
     let weekTotal = 0;
     let monthTotal = 0;
     const categoryTotalsMonth: Record<string, number> = {};
 
     expenses.forEach((exp) => {
-      if (isDateInWeek(exp.date, referenceDate)) {
-        weekTotal += exp.amount;
-      }
-      if (isDateInMonth(exp.date, referenceDate)) {
+      if (isDateInWeek(exp.date, today)) weekTotal += exp.amount;
+      if (isDateInMonth(exp.date, today)) {
         monthTotal += exp.amount;
         categoryTotalsMonth[exp.categoryId] = (categoryTotalsMonth[exp.categoryId] || 0) + exp.amount;
       }
@@ -160,33 +183,25 @@ export function useExpenseTracker(userId: string = "user-demo-101") {
 
     let highestCatObj: SummaryMetrics["highestCategory"] = null;
     let maxAmount = 0;
-
     Object.entries(categoryTotalsMonth).forEach(([catId, amount]) => {
       if (amount > maxAmount) {
         maxAmount = amount;
         const cat = categories.find((c) => c.id === catId);
         if (cat) {
-          highestCatObj = {
-            id: cat.id,
-            name: cat.name,
-            amount: amount,
-            color: cat.color,
-            icon: cat.icon,
-          };
+          highestCatObj = { id: cat.id, name: cat.name, amount, color: cat.color, icon: cat.icon };
         }
       }
     });
 
-    const dailyAverageThisWeek = weekTotal > 0 ? weekTotal / 7 : 0;
-
     return {
       totalThisWeek: weekTotal,
       totalThisMonth: monthTotal,
-      dailyAverageThisWeek,
+      dailyAverageThisWeek: weekTotal > 0 ? weekTotal / 7 : 0,
       highestCategory: highestCatObj,
       totalExpensesCount: expenses.length,
     };
-  }, [expenses, categories, referenceDate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expenses, categories]);
 
   return {
     isLoaded,
@@ -196,15 +211,15 @@ export function useExpenseTracker(userId: string = "user-demo-101") {
     setFilter,
     filteredExpenses,
     metrics,
-    referenceDate,
-    setReferenceDate,
     addExpense,
     updateExpense,
     deleteExpense,
     addCategory,
     updateCategory,
     deleteCategory,
+    bulkAddExpenses,
     resetAllData,
     refreshFromStorage,
+    restoreBackup,
   };
 }
