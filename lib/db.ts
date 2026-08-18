@@ -70,6 +70,18 @@ export async function dbGetCategories(userId: string): Promise<Category[]> {
 }
 
 export async function dbSeedDefaultCategories(userId: string): Promise<Category[]> {
+  // Guard: count existing categories first. If the user already has any,
+  // return them as-is instead of inserting duplicates. This makes the
+  // function safe to call multiple times (e.g. on re-login timing races).
+  const { count, error: countError } = await supabase
+    .from("categories")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId);
+
+  if (!countError && count && count > 0) {
+    return dbGetCategories(userId);
+  }
+
   const rows = DEFAULT_CATEGORIES.map((cat) => ({
     user_id: userId,
     name: cat.name,

@@ -46,10 +46,14 @@ export function useExpenseTracker(userId: string = "") {
       dbGetExpenses(userId),
     ]);
 
-    // Seed default categories for brand-new users
+    // Only seed defaults for genuinely new users (no categories in DB).
+    // dbSeedDefaultCategories has its own idempotency guard so it's safe
+    // to call here, but we still do a quick count to avoid an extra round-trip
+    // for users who already have data.
     if (cats.length === 0) {
       const seeded = await dbSeedDefaultCategories(userId);
-      setCategories(seeded);
+      // If seeded is also empty (error case), keep empty rather than looping
+      setCategories(seeded.length > 0 ? seeded : []);
     } else {
       setCategories(cats);
     }
@@ -57,6 +61,7 @@ export function useExpenseTracker(userId: string = "") {
     setExpenses(exps);
     setIsLoaded(true);
   }, [userId]);
+
 
   useEffect(() => {
     loadData();
