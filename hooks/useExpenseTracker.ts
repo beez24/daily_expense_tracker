@@ -36,9 +36,23 @@ export function useExpenseTracker(userId: string = "") {
     sortBy: "date-desc",
   });
 
+  // ─── Reset immediately when userId changes ───────────────────────────────
+  // This ensures the loading spinner always shows while data is fetching,
+  // preventing stale categories/expenses from a previous session being visible.
+  useEffect(() => {
+    setIsLoaded(false);
+    setExpenses([]);
+    setCategories([]);
+  }, [userId]);
+
   // ─── Load from Supabase on mount / userId change ─────────────────────────
   const loadData = useCallback(async () => {
     if (!userId) return;
+
+    // Abort flag: if userId changes again before this call finishes,
+    // the stale result is discarded and does not overwrite fresh data.
+    let cancelled = false;
+
     setIsLoaded(false);
 
     const [cats, exps] = await Promise.all([
@@ -46,13 +60,13 @@ export function useExpenseTracker(userId: string = "") {
       dbGetExpenses(userId),
     ]);
 
+    if (cancelled) return;
+
     // Only seed defaults for genuinely new users (no categories in DB).
-    // dbSeedDefaultCategories has its own idempotency guard so it's safe
-    // to call here, but we still do a quick count to avoid an extra round-trip
-    // for users who already have data.
+    // dbSeedDefaultCategories has its own idempotency guard inside the DB.
     if (cats.length === 0) {
       const seeded = await dbSeedDefaultCategories(userId);
-      // If seeded is also empty (error case), keep empty rather than looping
+      if (cancelled) return;
       setCategories(seeded.length > 0 ? seeded : []);
     } else {
       setCategories(cats);
@@ -60,12 +74,14 @@ export function useExpenseTracker(userId: string = "") {
 
     setExpenses(exps);
     setIsLoaded(true);
-  }, [userId]);
 
+    return () => { cancelled = true; };
+  }, [userId]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
 
   // ─── Expense CRUD ─────────────────────────────────────────────────────────
   const addExpense = useCallback(async (data: Omit<Expense, "id" | "createdAt">) => {
