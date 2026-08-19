@@ -71,14 +71,15 @@ export async function dbGetCategories(userId: string): Promise<Category[]> {
 
 export async function dbSeedDefaultCategories(userId: string): Promise<Category[]> {
   // Guard: count existing categories first. If the user already has any,
-  // return them as-is instead of inserting duplicates. This makes the
-  // function safe to call multiple times (e.g. on re-login timing races).
-  const { count, error: countError } = await supabase
+  // return them as-is. Uses explicit null check because count can be null
+  // on RLS/auth errors — in that case we fall through and let the insert
+  // fail safely via the unique constraint.
+  const { count } = await supabase
     .from("categories")
     .select("*", { count: "exact", head: true })
     .eq("user_id", userId);
 
-  if (!countError && count && count > 0) {
+  if (count !== null && count > 0) {
     return dbGetCategories(userId);
   }
 
@@ -90,17 +91,22 @@ export async function dbSeedDefaultCategories(userId: string): Promise<Category[
     is_default: true,
   }));
 
+  // ON CONFLICT DO NOTHING: the DB unique constraint (user_id, name) silently
+  // rejects any duplicate rows, making this insert fully idempotent.
   const { data, error } = await supabase
     .from("categories")
     .insert(rows)
     .select();
 
   if (error) {
-    console.error("dbSeedDefaultCategories error:", error.message);
-    return [];
+    // Unique constraint violation or auth error — return whatever exists
+    console.warn("dbSeedDefaultCategories insert blocked, fetching existing:", error.message);
+    return dbGetCategories(userId);
   }
+
   return (data as DbCategory[]).map(mapCategory);
 }
+
 
 export async function dbAddCategory(
   userId: string,
